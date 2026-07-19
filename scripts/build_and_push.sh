@@ -16,6 +16,10 @@ fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity "${PROFILE_ARGS[@]}" --query Account --output text)
 REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+# Must match terraform's var.image_name_prefix (ECR repo names) and
+# var.project_name (ECS cluster name) respectively — they're separate
+# prefixes in terraform/variables.tf, not one shared name.
+IMAGE_NAME_PREFIX="${IMAGE_NAME_PREFIX:-claude-playground}"
 PROJECT_NAME="${PROJECT_NAME:-claude-playground-poc}"
 
 aws ecr get-login-password "${PROFILE_ARGS[@]}" --region "$REGION" \
@@ -23,12 +27,12 @@ aws ecr get-login-password "${PROFILE_ARGS[@]}" --region "$REGION" \
 
 echo "== building gateway image =="
 docker buildx build --platform linux/amd64 \
-  -t "${REGISTRY}/${PROJECT_NAME}-gateway:latest" \
+  -t "${REGISTRY}/${IMAGE_NAME_PREFIX}-gateway:latest" \
   --push ./gateway
 
 echo "== building per-user playground image =="
 docker buildx build --platform linux/amd64 \
-  -t "${REGISTRY}/${PROJECT_NAME}-user:latest" \
+  -t "${REGISTRY}/${IMAGE_NAME_PREFIX}-user:latest" \
   --push ./docker
 
 echo "done. Force a new ECS deployment to pick up the new gateway image:"

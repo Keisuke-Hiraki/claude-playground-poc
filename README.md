@@ -22,6 +22,74 @@ lambda/pre-signup/   Cognito 自己登録の許可メールドメイン制限（
 scripts/             Bedrock モデルの Marketplace 同意、イメージビルド&push
 ```
 
+## 環境変数・設定値の管理場所
+
+このリポジトリでは設定値の種類によって管理場所が3つに分かれている。
+
+| 管理場所 | 対象 | コミット対象か |
+|---|---|---|
+| `.env`（`docker-compose.yml` が読む） | ローカル docker-compose 版の AWS 認証情報・モデル指定 | ✗（`.gitignore` 対象。`.env.example` をコピーして作成） |
+| `terraform/terraform.tfvars` | 本番相当構成（AWS）のデプロイ設定一式 | ✗（`.gitignore` 対象。`terraform.tfvars.example` をコピーして作成） |
+| シェル環境変数（`scripts/*.sh` 実行時に指定） | `AWS_PROFILE`・`AWS_REGION` 等、スクリプト実行時のみ使うもの | — （シェルで都度指定） |
+
+### `.env`（ローカル docker-compose 版）
+
+`cp .env.example .env` して以下を記入する。
+
+| 変数 | 説明 | 既定値 |
+|---|---|---|
+| `AWS_REGION` | Bedrock を呼ぶリージョン | `ap-northeast-1` |
+| `ANTHROPIC_MODEL` | 使用する Bedrock モデル（推論プロファイル ID） | `jp.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` | `bedrock:InvokeModel` 権限を持つ AWS 認証情報。未設定でもビルド・ルーティング確認は可能（`claude` の実応答のみ確認できない） | 空 |
+| `ENABLE_FIREWALL` | `true` にすると `docker/init-firewall.sh` のエグレス許可リストをコンテナ内で有効化 | `false` |
+
+### `terraform/terraform.tfvars`（本番相当構成）
+
+`cp terraform/terraform.tfvars.example terraform/terraform.tfvars` して以下を記入する。定義・既定値の全量は [`terraform/variables.tf`](./terraform/variables.tf) を参照。
+
+必須（既定値なし、必ず自分の環境の値に書き換える）:
+
+| 変数 | 説明 |
+|---|---|
+| `vpc_id` | デプロイ先の既存 VPC（Internet Gateway 付き） |
+| `public_subnet_ids` | ALB・NAT Gateway 用のパブリックサブネット（2つ以上） |
+| `private_subnet_az` | ゲートウェイ・参加者コンテナ用に新規作成する private subnet の AZ |
+| `domain_name` | プレイグラウンドを公開する FQDN |
+| `route53_zone_id` | `domain_name` が属する Route53 ホストゾーン ID |
+| `allowed_signup_email_domains` | Cognito 自己登録を許可するメールドメイン（例: `["example.com"]`）。既定のサンプル値のままでは誰も自己登録できない |
+
+任意（既定値あり、必要な場合のみ上書き）:
+
+| 変数 | 説明 | 既定値 |
+|---|---|---|
+| `aws_region` | デプロイ先リージョン | `ap-northeast-1` |
+| `aws_profile` | 使用する AWS CLI プロファイル | なし（デフォルトの認証チェーン） |
+| `project_name` | ECS クラスタ・IAM ロール・Cognito ユーザープール・Pre-SignUp Lambda の名前接頭辞 | `claude-playground-poc` |
+| `image_name_prefix` | ECR リポジトリ・ECS タスク定義 family の名前接頭辞 | `claude-playground` |
+| `network_resource_prefix` | ALB・ターゲットグループ・セキュリティグループの名前接頭辞 | `playground` |
+| `ecs_task_execution_role_name` | 既存の ECS タスク実行ロール名（イメージ pull・ログ送信用） | `ecsTaskExecutionRole` |
+| `access_window_start_jst` / `access_window_end_jst` | ログイン受付時間帯（JST） | `10:00` / `11:00` |
+| `session_max_minutes` | 1セッションあたりの利用時間上限（分） | `45` |
+| `storage_limit_gib` | コンテナ内バナーに表示するストレージ上限（表示用。タスク定義側は Fargate 既定の 20GiB のまま） | `20` |
+| `bedrock_model_ids` / `bedrock_model_prefix` | 利用可能な Bedrock モデルとその推論プロファイル接頭辞 | Opus/Sonnet/Haiku 各最新版、`global` |
+| `user_task_cpu` / `user_task_memory` | 参加者コンテナの Fargate CPU/メモリ | `1024` / `2048` |
+| `gateway_image_tag` / `user_image_tag` | デプロイするイメージタグ | `latest` |
+| `enable_container_firewall` | コンテナ内エグレス許可リストの有効化 | `false` |
+| `log_retention_days` | CloudWatch Logs の保持期間 | `3` |
+
+`image_name_prefix`・`network_resource_prefix`・`ecs_task_execution_role_name` の3つは、既存 AWS アカウント上のリソース名がプロジェクト全体で単一の接頭辞に統一されていない場合に既存リソースへ合わせるための変数。新規に環境を作る場合は特に上書きする必要はない。
+
+### スクリプト実行時のシェル環境変数（`scripts/*.sh`）
+
+`terraform.tfvars` とは別に、デプロイ用スクリプトはコマンド実行時に環境変数で指定する。`terraform.tfvars` の値と食い違うと ECR リポジトリ名や ECS クラスタ名が一致せず失敗するので、上記で設定した `image_name_prefix`・`project_name` と揃えること。
+
+| 変数 | 使用スクリプト | 説明 | 既定値 |
+|---|---|---|---|
+| `AWS_PROFILE` | 両方 | 使用する AWS CLI プロファイル | 未設定時はデフォルトの認証チェーン |
+| `AWS_REGION` | 両方 | 対象リージョン | `ap-northeast-1` |
+| `IMAGE_NAME_PREFIX` | `build_and_push.sh` | push 先 ECR リポジトリ名の接頭辞。`terraform.tfvars` の `image_name_prefix` と一致させる | `claude-playground` |
+| `PROJECT_NAME` | `build_and_push.sh` | 再デプロイコマンドの出力に使う ECS クラスタ名。`terraform.tfvars` の `project_name` と一致させる | `claude-playground-poc` |
+
 ## 起動手順
 
 1. AWS 認証情報を用意する（対象 Bedrock モデルへの `bedrock:InvokeModel` 権限が必要）。無くてもビルド・ルーティング確認は可能（`claude` コマンドの実応答のみ確認できない）。
