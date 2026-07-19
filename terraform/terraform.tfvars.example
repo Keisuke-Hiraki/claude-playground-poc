@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and fill in your own values.
+
+aws_region  = "ap-northeast-1"
+aws_profile = "your-aws-profile" # or remove this line to use the default credential chain
+
+# Existing VPC with an Internet Gateway already attached.
+vpc_id             = "vpc-xxxxxxxxxxxxxxxxx"
+public_subnet_ids  = ["subnet-aaaaaaaaaaaaaaaaa", "subnet-bbbbbbbbbbbbbbbbb"]
+private_subnet_az  = "ap-northeast-1a"
+
+# Must resolve to a Route53 hosted zone you control (or its parent zone).
+domain_name      = "playground.example.com"
+route53_zone_id  = "Z0EXAMPLEHOSTEDZONE"
+
+# Uncomment to override the naming defaults set in variables.tf (they already
+# match this account's existing resources — only change if starting fresh).
+# image_name_prefix            = "claude-playground"
+# network_resource_prefix      = "playground"
+# ecs_task_execution_role_name = "ecsTaskExecutionRole"
+
+allowed_signup_email_domains = ["example.com"]
+
+access_window_start_jst = "10:00"
+access_window_end_jst   = "11:00"
+session_max_minutes     = 45
+storage_limit_gib       = 20

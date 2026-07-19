@@ -1,0 +1,42 @@
+services:
+  claude-alice:
+    build: ./docker
+    environment:
+      - PLAYGROUND_USER=alice
+      - CLAUDE_CODE_USE_BEDROCK=1
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-jp.anthropic.claude-sonnet-4-5-20250929-v1:0}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - ENABLE_FIREWALL=${ENABLE_FIREWALL:-false}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    expose:
+      - "7681"
+
+  claude-bob:
+    build: ./docker
+    environment:
+      - PLAYGROUND_USER=bob
+      - CLAUDE_CODE_USE_BEDROCK=1
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-jp.anthropic.claude-sonnet-4-5-20250929-v1:0}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN:-}
+      - ENABLE_FIREWALL=${ENABLE_FIREWALL:-false}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    expose:
+      - "7681"
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - claude-alice
+      - claude-bob

@@ -1,0 +1,15 @@
+{
+  "name": "playground-gateway",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Session gateway: verifies ALB+Cognito identity, launches a per-user Fargate task on demand, and proxies the WebSocket to it.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.700.0",
+    "@aws-sdk/client-ecs": "^3.700.0",
+    "http-proxy": "^1.18.1"
+  }
+}

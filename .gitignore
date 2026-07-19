@@ -1,0 +1,15 @@
+.env
+node_modules/
+
+# Claude Code: personal/local settings, not shared project config
+.claude/settings.local.json
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform-version
+terraform/.build/
+terraform/terraform.tfstate
+terraform/terraform.tfstate.*
+terraform/*.tfvars
+!terraform/terraform.tfvars.example
+terraform/*.tfplan

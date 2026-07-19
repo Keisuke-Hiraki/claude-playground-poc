@@ -1,0 +1,4 @@
+{
+  "alice": { "host": "claude-alice", "port": 7681 },
+  "bob": { "host": "claude-bob", "port": 7681 }
+}
