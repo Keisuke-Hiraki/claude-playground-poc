@@ -5,10 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A PoC for a shared "playground" where workshop participants log in via a browser and get a per-user
-container running Claude Code (on Amazon Bedrock) with a web terminal (ttyd). Full rationale, threat
-model, and open questions live in [DESIGN.md](./DESIGN.md); operational instructions live in
-[README.md](./README.md) — read both before making non-trivial changes, especially around the
-ALB-auth/WebSocket design and the IAM task-role boundary.
+container running Claude Code (on Amazon Bedrock) with a web terminal (ttyd). Build/teardown
+instructions live in [README.md](./README.md); the design rationale (why ALB-auth + a single gateway
+instead of per-user target groups, threat model, cost estimate) is written up in a blog post rather
+than kept in this repo — read this file for the parts that matter when editing code, below.
 
 There are no automated tests in this repo. Verification is manual (see "Common commands" below);
 when in doubt about test coverage, ask the user rather than assuming.
@@ -91,8 +91,8 @@ There is no lint/build/test script defined anywhere in this repo (`gateway/packa
   already `false` on the service/tasks, so nothing used it. Don't re-add ECS Exec access here without
   reconsidering this boundary.
 - **Access windows and session TTLs are enforced in the gateway, not in AWS**, via JST-aware time math
-  (`isWithinLaunchWindow`, `sessionExpiryUtcMs`) and `setTimeout`. This is a known-unverified-at-scale
-  mechanism (see DESIGN.md "未検証") — don't assume it's precise under load.
+  (`isWithinLaunchWindow`, `sessionExpiryUtcMs`) and `setTimeout`. Its precision under concurrent load
+  (many simultaneous logins/expirations) has not been verified at scale — don't assume it's exact.
 - **Claude Code needs general internet egress even when `CLAUDE_CODE_USE_BEDROCK=1`** — it still
   reaches `api.anthropic.com` and similar auxiliary endpoints. This is why `terraform/network.tf` gives
   the private subnet a NAT Gateway rather than trying to route purely through VPC endpoints.
@@ -106,9 +106,10 @@ There is no lint/build/test script defined anywhere in this repo (`gateway/packa
   it has a known DNS-tunneling gap (upstream `anthropics/claude-code` issues #36907, #35197) and is
   disabled by default (`ENABLE_FIREWALL=false`). It's defense-in-depth on top of the security-group/NAT
   boundary in `terraform/network.tf`, not a substitute for it.
-- **The ALB-auth + WebSocket combination is verified working** (see DESIGN.md "PoC の検証状況"), but
-  AWS doesn't document it explicitly — if this behavior seems to regress, that's a real risk area, not
-  a likely misconfiguration on our side.
+- **The ALB-auth + WebSocket combination is verified working** (confirmed end-to-end: Cognito login →
+  ALB-signed ID token verification → dynamic task launch → WebSocket proxy), but AWS doesn't document
+  this combination explicitly — if this behavior seems to regress, that's a real risk area, not a
+  likely misconfiguration on our side.
 - **Resource naming in `terraform/` uses three separate prefix variables, not one.** The deployed
   account already had resources under inconsistent names before this repo standardized on Terraform,
   so the code matches that instead of using `project_name` everywhere:
@@ -117,8 +118,26 @@ There is no lint/build/test script defined anywhere in this repo (`gateway/packa
   - `var.image_name_prefix` (`claude-playground`): ECR repositories, ECS task definition families.
   - `var.network_resource_prefix` (`playground`): ALB, target group, security groups.
   - The ECS task execution role also reuses the account's pre-existing `ecsTaskExecutionRole`
-    (`var.ecs_task_execution_role_name`) rather than a project-scoped role.
+    (`var.ecs_task_execution_role_name`) rather than a project-scoped role, via `data "aws_iam_role"`
+    in `iam.tf` — Terraform does not create this role.
   Don't consolidate these into one prefix without confirming the account's actual resource names —
   see the sibling `iam.tf`/`ecs.tf`/`network.tf`/`alb.tf` comments for what maps to what.
+- **`var.ecs_task_execution_role_name`'s default (`ecsTaskExecutionRole`) is not guaranteed to exist
+  in a fresh account** — confirmed by deploying to a second, unrelated AWS account where it didn't.
+  Because `iam.tf` only reads this role (`data` source, not `resource`), `terraform apply` fails at
+  plan/apply time if it's missing. Check with `aws iam get-role --role-name ecsTaskExecutionRole`
+  before applying to a new account, and create it (trust policy for `ecs-tasks.amazonaws.com` +
+  `AmazonECSTaskExecutionRolePolicy` attached) or point `ecs_task_execution_role_name` at an existing
+  one if not.
+- **Tearing down `terraform destroy` can fail on `aws_subnet.private`/security groups if a GuardDuty
+  Runtime Monitoring VPC endpoint (`com.amazonaws.<region>.guardduty-data`) has attached an ENI to
+  that subnet.** GuardDuty auto-creates this per-VPC when it detects ECS Fargate tasks could run
+  there; it's not a Terraform-managed resource and can't be deleted by removing anything in this
+  repo's state. If destroy hangs on `DependencyViolation` for the subnet, check
+  `aws ec2 describe-network-interfaces --filters Name=subnet-id,Values=<subnet-id>` — if the ENI
+  belongs to a `guardduty-data` endpoint, either wait for GuardDuty to release it or
+  `aws ec2 modify-vpc-endpoint --remove-subnet-ids <subnet-id>` on that endpoint (confirm with the
+  account owner first if the same endpoint also serves other subnets/workloads in the VPC — deleting
+  it outright can stop Fargate runtime monitoring account/VPC-wide, not just for this project).
 - **The per-user task definition doesn't set an `ephemeral_storage` override** — it runs at Fargate's
   default (20GiB) regardless of `var.storage_limit_gib`, which only feeds the in-container banner text.
