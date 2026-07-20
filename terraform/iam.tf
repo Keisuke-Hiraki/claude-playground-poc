@@ -10,12 +10,18 @@ data "aws_iam_policy_document" "ecs_tasks_assume_role" {
   }
 }
 
-# ECS task execution role (image pull + log delivery). Uses the account's
-# standard "ecsTaskExecutionRole" rather than a project-scoped one — this
-# account already had it from prior work, so both task definitions point at
-# it via var.ecs_task_execution_role_name.
-data "aws_iam_role" "ecs_task_execution" {
-  name = var.ecs_task_execution_role_name
+# ECS task execution role (image pull + log delivery). Created per-project
+# with a project_name prefix so `terraform apply` works on a fresh account
+# without any manual pre-provisioning; the project prefix keeps it from
+# colliding with a standard account-wide "ecsTaskExecutionRole" if one exists.
+resource "aws_iam_role" "ecs_task_execution" {
+  name               = "${var.project_name}-task-execution-role"
+  assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
+  role       = aws_iam_role.ecs_task_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 # --- Per-user container task role -----------------------------------------
@@ -87,7 +93,7 @@ data "aws_iam_policy_document" "gateway_manage_user_tasks" {
     sid       = "PassRolesToLaunchedTasks"
     effect    = "Allow"
     actions   = ["iam:PassRole"]
-    resources = [data.aws_iam_role.ecs_task_execution.arn, aws_iam_role.user_task.arn]
+    resources = [aws_iam_role.ecs_task_execution.arn, aws_iam_role.user_task.arn]
   }
 
   statement {

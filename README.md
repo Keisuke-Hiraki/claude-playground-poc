@@ -38,7 +38,7 @@ docker compose down
 
 構築:
 
-1. 前提: 既存 VPC（Internet Gateway 付き）、その VPC 内のパブリックサブネット2つ以上、対象ドメインの Route53 ホストゾーン、ECS タスク実行ロール（`ecsTaskExecutionRole` という名前のロールが無ければ事前に作成する）。
+1. 前提: 既存 VPC（Internet Gateway 付き）、その VPC 内のパブリックサブネット2つ以上、対象ドメインの Route53 ホストゾーン。
 2. Bedrock の利用モデルについて、AWS Marketplace の利用規約に同意する。
 
    ```bash

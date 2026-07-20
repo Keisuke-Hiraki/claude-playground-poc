@@ -34,12 +34,6 @@ variable "network_resource_prefix" {
   default     = "playground"
 }
 
-variable "ecs_task_execution_role_name" {
-  description = "Name of the existing ECS task execution role (image pull + log delivery) to use. This account already has the standard \"ecsTaskExecutionRole\"; point this at a project-scoped role instead if you'd rather not reuse the shared one."
-  type        = string
-  default     = "ecsTaskExecutionRole"
-}
-
 variable "vpc_id" {
   description = "Existing VPC to deploy into. Must already have an Internet Gateway attached (a public subnet is required for the ALB and NAT Gateway)."
   type        = string

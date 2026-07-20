@@ -117,18 +117,13 @@ There is no lint/build/test script defined anywhere in this repo (`gateway/packa
     Pre-SignUp Lambda.
   - `var.image_name_prefix` (`claude-playground`): ECR repositories, ECS task definition families.
   - `var.network_resource_prefix` (`playground`): ALB, target group, security groups.
-  - The ECS task execution role also reuses the account's pre-existing `ecsTaskExecutionRole`
-    (`var.ecs_task_execution_role_name`) rather than a project-scoped role, via `data "aws_iam_role"`
-    in `iam.tf` — Terraform does not create this role.
+  - The ECS task execution role (`${project_name}-task-execution-role`) is created as a `resource` in
+    `iam.tf`, so `terraform apply` works on a fresh account with no manual pre-provisioning. The
+    project prefix keeps it from colliding with a standard account-wide `ecsTaskExecutionRole` if one
+    already exists. (Earlier revisions referenced a pre-existing role via `data "aws_iam_role"`, which
+    forced manual role creation on any account that lacked it — that's why it's a `resource` now.)
   Don't consolidate these into one prefix without confirming the account's actual resource names —
   see the sibling `iam.tf`/`ecs.tf`/`network.tf`/`alb.tf` comments for what maps to what.
-- **`var.ecs_task_execution_role_name`'s default (`ecsTaskExecutionRole`) is not guaranteed to exist
-  in a fresh account** — confirmed by deploying to a second, unrelated AWS account where it didn't.
-  Because `iam.tf` only reads this role (`data` source, not `resource`), `terraform apply` fails at
-  plan/apply time if it's missing. Check with `aws iam get-role --role-name ecsTaskExecutionRole`
-  before applying to a new account, and create it (trust policy for `ecs-tasks.amazonaws.com` +
-  `AmazonECSTaskExecutionRolePolicy` attached) or point `ecs_task_execution_role_name` at an existing
-  one if not.
 - **Tearing down `terraform destroy` can fail on `aws_subnet.private`/security groups if a GuardDuty
   Runtime Monitoring VPC endpoint (`com.amazonaws.<region>.guardduty-data`) has attached an ENI to
   that subnet.** GuardDuty auto-creates this per-VPC when it detects ECS Fargate tasks could run

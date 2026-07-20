@@ -34,7 +34,7 @@ resource "aws_ecs_task_definition" "user" {
   network_mode             = "awsvpc"
   cpu                      = var.user_task_cpu
   memory                   = var.user_task_memory
-  execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.user_task.arn
 
   container_definitions = jsonencode([
@@ -84,7 +84,7 @@ resource "aws_ecs_task_definition" "gateway" {
   network_mode             = "awsvpc"
   cpu                      = "256"
   memory                   = "512"
-  execution_role_arn       = data.aws_iam_role.ecs_task_execution.arn
+  execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.gateway_task.arn
 
   container_definitions = jsonencode([

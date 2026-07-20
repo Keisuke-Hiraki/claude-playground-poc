@@ -14,9 +14,8 @@ route53_zone_id  = "Z0EXAMPLEHOSTEDZONE"
 
 # Uncomment to override the naming defaults set in variables.tf (they already
 # match this account's existing resources — only change if starting fresh).
-# image_name_prefix            = "claude-playground"
-# network_resource_prefix      = "playground"
-# ecs_task_execution_role_name = "ecsTaskExecutionRole"
+# image_name_prefix       = "claude-playground"
+# network_resource_prefix = "playground"
 
 allowed_signup_email_domains = ["example.com"]
 
