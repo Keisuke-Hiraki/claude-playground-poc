@@ -33,4 +33,14 @@ EOF
 # -W: allow input (ttyd defaults to read-only). Identity/authN is handled
 # one layer up by the gateway (mirrors ALB terminating auth before traffic
 # reaches this container) — see gateway/server.js.
-exec ttyd -W -p 7681 bash -l
+#
+# Self-terminate after SESSION_MAX_MINUTES. The gateway also stops this task
+# on its own setTimeout, but that timer lives only in the gateway's process
+# memory and is lost if the gateway restarts/redeploys, orphaning the task.
+# Wrapping ttyd in `timeout` gives the container an independent teardown that
+# doesn't depend on the gateway staying alive: when it fires, ttyd (PID 1's
+# child) is signalled, ttyd exits, and the essential container stopping ends
+# the Fargate task. Note this bounds elapsed wall-clock from container start,
+# not idle time; it does not itself enforce the daily access window
+# (WINDOW_END_JST) — that remains the gateway's responsibility.
+exec timeout "${SESSION_MAX_MINUTES:-45}m" ttyd -W -p 7681 bash -l
